@@ -1,1 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-dashboard
+  labels:
+    app: traffic-dashboard
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  progressDeadlineSeconds: 90
+  selector:
+    matchLabels:
+      app: traffic-dashboard
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # keep stable pods serving while a new release rolls out
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: traffic-dashboard
+    spec:
+      containers:
+        - name: traffic-dashboard
+          image: DOCKERHUB_USER/traffic-dashboard:latest   # overridden by Jenkins with kubectl set image
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traffic-dashboard-svc
+spec:
+  type: NodePort
+  selector:
+    app: traffic-dashboard
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
 

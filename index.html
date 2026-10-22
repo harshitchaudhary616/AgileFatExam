@@ -3,246 +3,228 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Intelligent Traffic Management</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intelligent Traffic Control Center</title>
 <style>
-:root {
-    --bg: #f3f6fb;
-    --panel: #ffffff;
-    --text: #182230;
-    --muted: #64748b;
-    --blue: #2457d6;
-    --border: #e2e8f0;
-}
-* { box-sizing: border-box; }
-body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-}
-header {
-    background: #12213d;
-    color: white;
-    padding: 24px 5%;
-}
-header h1 { margin: 0 0 8px; font-size: 26px; }
-header p { margin: 0; color: #dbeafe; }
-main { max-width: 1400px; margin: auto; padding: 24px; }
-.metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-}
-.metric, .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 20px;
-}
-.metric span { color: var(--muted); font-size: 13px; }
-.metric strong { display: block; font-size: 27px; margin-top: 10px; }
-.panel { margin-bottom: 20px; }
-.panel h2 { margin-top: 0; font-size: 19px; }
-.alert {
-    padding: 12px 14px;
-    margin: 10px 0;
-    border-radius: 9px;
-    background: #fff1f2;
-    color: #9f1239;
-    border-left: 4px solid #e11d48;
-}
-.advisory {
-    padding: 14px;
-    margin: 10px 0;
-    border-radius: 9px;
-    background: #eff6ff;
-    border-left: 4px solid #2563eb;
-}
-table { width: 100%; border-collapse: collapse; }
-th, td {
-    padding: 13px 10px;
-    border-bottom: 1px solid var(--border);
-    text-align: left;
-}
-th { background: #f8fafc; font-size: 13px; }
-.table-wrap { overflow-x: auto; }
-.badge {
-    display: inline-block;
-    padding: 5px 9px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 700;
-    white-space: nowrap;
-}
-.low { background: #dcfce7; color: #166534; }
-.moderate { background: #fef3c7; color: #92400e; }
-.high { background: #ffedd5; color: #9a3412; }
-.critical { background: #fee2e2; color: #991b1b; }
-.signal-green { color: #15803d; font-weight: 700; }
-.signal-red { color: #dc2626; font-weight: 700; }
-button, select {
-    padding: 10px 13px;
-    border-radius: 8px;
-    border: 1px solid #cbd5e1;
-    background: white;
-    font: inherit;
-}
-button { cursor: pointer; }
-button.primary { background: var(--blue); color: white; border: 0; }
-button:hover { opacity: .88; }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; }
-footer { text-align: center; color: var(--muted); padding: 22px; }
-@media(max-width:650px) {
-    main { padding: 12px; }
-    header { padding: 20px; }
-    th, td { padding: 10px 8px; }
-}
+:root{--bg:#f1f5f9;--panel:#fff;--text:#172033;--muted:#64748b;--border:#dbe3ee;--blue:#1d4ed8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:#10213e;color:white;padding:25px 5%}
+header h1{margin:0 0 8px;font-size:27px}
+header p{margin:0;color:#dbeafe}
+main{max-width:1450px;margin:auto;padding:24px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:15px;margin-bottom:20px}
+.metric,.panel{background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:19px}
+.metric span{font-size:13px;color:var(--muted)}
+.metric strong{display:block;font-size:27px;margin-top:10px}
+h2{font-size:19px;margin-top:0}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px}
+select,button{padding:10px 13px;border:1px solid #cbd5e1;border-radius:8px;background:white;font:inherit}
+button{cursor:pointer}
+button.primary{background:var(--blue);color:white;border:0}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:720px}
+th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--border)}
+th{background:#f8fafc;font-size:13px}
+.badge{display:inline-block;padding:5px 9px;border-radius:18px;font-size:12px;font-weight:700;white-space:nowrap}
+.low{background:#dcfce7;color:#166534}
+.moderate{background:#fef3c7;color:#92400e}
+.high{background:#ffedd5;color:#9a3412}
+.critical{background:#fee2e2;color:#991b1b}
+.signal-green{color:#15803d;font-weight:700}
+.signal-red{color:#dc2626;font-weight:700}
+.alert{background:#fff1f2;border-left:4px solid #e11d48;color:#9f1239;padding:12px;margin:9px 0;border-radius:7px}
+.advisory{background:#eff6ff;border-left:4px solid #2563eb;padding:14px;margin:9px 0;border-radius:7px}
+.warning{background:#fff7ed;border-left-color:#ea580c}
+.analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
+.muted{color:var(--muted);font-size:13px}
+footer{text-align:center;color:var(--muted);padding:20px}
+@media(max-width:600px){main{padding:12px}header{padding:20px}}
 </style>
 </head>
 <body>
 <header>
-    <h1>🚦 Intelligent Traffic Management</h1>
-    <p>Urban congestion monitoring and signal coordination dashboard</p>
+<h1>🚦 Intelligent Traffic Control Center</h1>
+<p>Intersection analytics · Emergency priority · Congestion management</p>
 </header>
-
 <main>
-    <section class="metrics">
-        <div class="metric"><span>Intersections monitored</span><strong id="intersectionCount">5</strong></div>
-        <div class="metric"><span>Total vehicles</span><strong id="totalVehicles">0</strong></div>
-        <div class="metric"><span>Congested intersections</span><strong id="congestedCount">0</strong></div>
-        <div class="metric"><span>Waiting-time alerts</span><strong id="alertCount">0</strong></div>
-    </section>
+<section class="metrics">
+<div class="metric"><span>Intersections monitored</span><strong id="intersectionCount">5</strong></div>
+<div class="metric"><span>Total vehicles</span><strong id="totalVehicles">0</strong></div>
+<div class="metric"><span>Most congested intersection</span><strong id="worstIntersection" style="font-size:19px">—</strong></div>
+<div class="metric"><span>Waiting-time alerts</span><strong id="alertCount">0</strong></div>
+<div class="metric"><span>Active road closures</span><strong id="closureCount">0</strong></div>
+</section>
 
-    <section class="panel">
-        <h2>Live Traffic Alerts</h2>
-        <div id="alerts"></div>
-    </section>
+<section class="panel">
+<h2>Intersection Monitoring & Filtering</h2>
+<div class="toolbar">
+<select id="intersectionFilter" aria-label="Filter intersection" onchange="renderDashboard()">
+<option value="all">All intersections</option>
+</select>
+<select id="congestionFilter" aria-label="Filter congestion" onchange="renderDashboard()">
+<option value="all">All congestion levels</option>
+<option>Low</option><option>Moderate</option><option>High</option><option>Critical</option>
+</select>
+<button class="primary" onclick="refreshDashboard()">Refresh simulated data</button>
+</div>
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Intersection ID</th><th>Location</th><th>Vehicles</th>
+<th>Average wait (s)</th><th>Signal status</th><th>Congestion</th>
+</tr></thead>
+<tbody id="trafficRows"></tbody>
+</table>
+</div>
+<p class="muted">Traffic records are simulated. Filtering changes the table view, not the underlying dataset.</p>
+</section>
 
-    <section class="panel">
-        <h2>Intersection Monitoring</h2>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th><th>Location</th><th>Vehicles</th>
-                        <th>Avg. wait (s)</th><th>Signal</th><th>Congestion</th>
-                    </tr>
-                </thead>
-                <tbody id="trafficRows"></tbody>
-            </table>
-        </div>
-    </section>
+<section class="analytics-grid">
+<div class="panel">
+<h2>Congestion Analytics</h2>
+<div id="analytics"></div>
+</div>
+<div class="panel">
+<h2>Waiting-Time Alerts</h2>
+<div id="alerts"></div>
+</div>
+</section>
 
-    <section class="panel">
-        <h2>Road Closures & Emergency Advisories</h2>
-        <div id="advisories"></div>
-    </section>
+<section class="panel">
+<h2>Signal-Timing Recommendations</h2>
+<p class="muted">Illustrative recommendations only; a traffic operator must validate them before any real-world use.</p>
+<div id="recommendations"></div>
+</section>
 
-    <section class="panel">
-        <h2>Signal Timing Recommendations</h2>
-        <p>Recommendations are simulated and are not connected to real traffic signals.</p>
-        <div id="recommendations"></div>
-    </section>
+<section class="panel">
+<h2>Traffic Diversion & Road Closures</h2>
+<div id="diversions"></div>
+</section>
 
-    <section class="panel">
-        <h2>Simulation Controls</h2>
-        <div class="actions">
-            <button class="primary" onclick="refreshDashboard()">Refresh simulated traffic</button>
-        </div>
-        <p id="lastUpdated">Data source: simulated traffic records.</p>
-    </section>
+<section class="panel">
+<h2>Emergency Vehicle Priority</h2>
+<div id="emergency"></div>
+</section>
+
+<section class="panel">
+<h2>System Status</h2>
+<p id="lastUpdated">Data source: simulated records.</p>
+<p class="muted">No live traffic feeds or physical traffic signals are connected.</p>
+</section>
 </main>
-
-<footer>Intelligent Traffic Signal & Urban Congestion Management System · Demo</footer>
+<footer>Intelligent Traffic Signal & Urban Congestion Management System</footer>
 
 <script>
-const intersections = [
-    { id: "INT-101", location: "Central Avenue", vehicles: 145, wait: 138, signal: "Red" },
-    { id: "INT-102", location: "Market Street", vehicles: 82, wait: 72, signal: "Green" },
-    { id: "INT-103", location: "Station Road", vehicles: 210, wait: 185, signal: "Red" },
-    { id: "INT-104", location: "Airport Junction", vehicles: 55, wait: 38, signal: "Green" },
-    { id: "INT-105", location: "Ring Road", vehicles: 176, wait: 124, signal: "Red" }
+const intersections=[
+{id:"INT-101",location:"Central Avenue",vehicles:145,wait:138,signal:"Red"},
+{id:"INT-102",location:"Market Street",vehicles:82,wait:72,signal:"Green"},
+{id:"INT-103",location:"Station Road",vehicles:210,wait:185,signal:"Red"},
+{id:"INT-104",location:"Airport Junction",vehicles:55,wait:38,signal:"Green"},
+{id:"INT-105",location:"Ring Road",vehicles:176,wait:124,signal:"Red"}
 ];
 
-const roadClosures = [
-    { road: "Old Bridge Road", status: "Closed", reason: "Simulated maintenance", diversion: "Use Riverside Avenue" }
+const closures=[
+{road:"Old Bridge Road",status:"CLOSED",reason:"Simulated maintenance",
+affected:"Central Avenue approach",diversion:"Use Riverside Avenue"},
+{road:"Market Street East",status:"OPEN",reason:"Closure cleared in simulation",
+affected:"Market Street",diversion:"Normal traffic flow"}
 ];
 
-const emergencies = [
-    { location: "Station Road", vehicle: "Ambulance", route: "Station Road → Central Avenue", priority: "High" }
+const emergencies=[
+{vehicle:"Ambulance",location:"Station Road",route:"Station Road → Central Avenue",
+status:"Priority advisory active"}
 ];
 
-function congestionLevel(vehicleCount) {
-    if (vehicleCount >= 200) return "Critical";
-    if (vehicleCount >= 150) return "High";
-    if (vehicleCount >= 80) return "Moderate";
-    return "Low";
+function level(item){
+if(item.vehicles>=200)return "Critical";
+if(item.vehicles>=150)return "High";
+if(item.vehicles>=80)return "Moderate";
+return "Low";
 }
 
-function renderDashboard() {
-    const total = intersections.reduce((sum, item) => sum + item.vehicles, 0);
-    const congested = intersections.filter(item =>
-        ["High", "Critical"].includes(congestionLevel(item.vehicles))
-    );
-    const waitingAlerts = intersections.filter(item => item.wait > 120);
-
-    document.getElementById("intersectionCount").textContent = intersections.length;
-    document.getElementById("totalVehicles").textContent = total;
-    document.getElementById("congestedCount").textContent = congested.length;
-    document.getElementById("alertCount").textContent = waitingAlerts.length;
-
-    document.getElementById("trafficRows").innerHTML = intersections.map(item => {
-        const level = congestionLevel(item.vehicles);
-        return `<tr>
-            <td>${item.id}</td>
-            <td>${item.location}</td>
-            <td>${item.vehicles}</td>
-            <td>${item.wait}</td>
-            <td class="${item.signal === "Green" ? "signal-green" : "signal-red"}">${item.signal}</td>
-            <td><span class="badge ${level.toLowerCase()}">${level}</span></td>
-        </tr>`;
-    }).join("");
-
-    document.getElementById("alerts").innerHTML = waitingAlerts.length
-        ? waitingAlerts.map(item =>
-            `<div class="alert"><strong>Waiting-time alert:</strong>
-            ${item.id} at ${item.location} has an average wait of ${item.wait} seconds.</div>`
-        ).join("")
-        : "<p>No waiting-time alerts.</p>";
-
-    document.getElementById("advisories").innerHTML = [
-        ...roadClosures.map(item =>
-            `<div class="advisory"><strong>Road closure: ${item.road}</strong>
-            — ${item.status}. ${item.reason}. Diversion: ${item.diversion}.</div>`
-        ),
-        ...emergencies.map(item =>
-            `<div class="advisory"><strong>Emergency priority: ${item.vehicle}</strong>
-            — ${item.location}. Suggested priority route: ${item.route}.</div>`
-        )
-    ].join("");
-
-    document.getElementById("recommendations").innerHTML = congested.length
-        ? congested.map(item =>
-            `<div class="advisory">${item.id}: consider increasing green-signal duration by
-            15 seconds, subject to operator review.</div>`
-        ).join("")
-        : "<p>No signal timing adjustments suggested.</p>";
+function initializeFilters(){
+const select=document.getElementById("intersectionFilter");
+intersections.forEach(item=>{
+const option=document.createElement("option");
+option.value=item.id;
+option.textContent=item.id+" — "+item.location;
+select.appendChild(option);
+});
 }
 
-function refreshDashboard() {
-    intersections.forEach(item => {
-        item.vehicles = Math.max(0, item.vehicles + Math.floor(Math.random() * 31) - 15);
-        item.wait = Math.max(0, item.wait + Math.floor(Math.random() * 21) - 10);
-    });
-    renderDashboard();
-    document.getElementById("lastUpdated").textContent =
-        "Simulated data refreshed at " + new Date().toLocaleTimeString();
+function renderDashboard(){
+const total=intersections.reduce((sum,item)=>sum+item.vehicles,0);
+const worst=[...intersections].sort((a,b)=>b.vehicles-a.vehicles)[0];
+const waiting=intersections.filter(item=>item.wait>120);
+
+document.getElementById("intersectionCount").textContent=intersections.length;
+document.getElementById("totalVehicles").textContent=total;
+document.getElementById("worstIntersection").textContent=worst.id;
+document.getElementById("alertCount").textContent=waiting.length;
+document.getElementById("closureCount").textContent=
+closures.filter(item=>item.status==="CLOSED").length;
+
+const selectedId=document.getElementById("intersectionFilter").value;
+const selectedLevel=document.getElementById("congestionFilter").value;
+const filtered=intersections.filter(item=>
+(selectedId==="all"||item.id===selectedId)&&
+(selectedLevel==="all"||level(item)===selectedLevel)
+);
+
+document.getElementById("trafficRows").innerHTML=filtered.map(item=>`
+<tr>
+<td>${item.id}</td><td>${item.location}</td><td>${item.vehicles}</td>
+<td>${item.wait}</td>
+<td class="${item.signal==="Green"?"signal-green":"signal-red"}">${item.signal}</td>
+<td><span class="badge ${level(item).toLowerCase()}">${level(item)}</span></td>
+</tr>`).join("")||'<tr><td colspan="6">No intersections match these filters.</td></tr>';
+
+document.getElementById("analytics").innerHTML=`
+<p><strong>Highest vehicle count:</strong> ${worst.id} — ${worst.location} (${worst.vehicles} vehicles)</p>
+<p><strong>High/Critical intersections:</strong> ${intersections.filter(item=>["High","Critical"].includes(level(item))).length}</p>
+<p><strong>Average waiting time:</strong> ${Math.round(intersections.reduce((s,item)=>s+item.wait,0)/intersections.length)} seconds</p>
+<p><strong>Displayed after filtering:</strong> ${filtered.length} of ${intersections.length} intersections</p>`;
+
+document.getElementById("alerts").innerHTML=waiting.length?
+waiting.map(item=>`<div class="alert"><strong>${item.id}</strong> — ${item.location}: average waiting time is ${item.wait} seconds, above 120 seconds.</div>`).join("")
+:"<p>No waiting-time alerts currently.</p>";
+
+document.getElementById("recommendations").innerHTML=
+intersections.filter(item=>["High","Critical"].includes(level(item))).map(item=>`
+<div class="advisory">
+<strong>${item.id} — ${item.location}</strong><br>
+Suggested adjustment: increase green time by 15 seconds as a simulation scenario.
+Current signal: ${item.signal}. Congestion: ${level(item)}.
+</div>`).join("")||"<p>No adjustments suggested.</p>";
+
+document.getElementById("diversions").innerHTML=closures.map(item=>`
+<div class="advisory ${item.status==="CLOSED"?"warning":""}">
+<strong>${item.road}</strong> — <span class="badge ${item.status==="CLOSED"?"critical":"low"}">${item.status}</span><br>
+Reason: ${item.reason}<br>
+Affected road: ${item.affected}<br>
+Diversion advisory: ${item.diversion}
+</div>`).join("");
+
+document.getElementById("emergency").innerHTML=emergencies.map(item=>`
+<div class="advisory">
+<strong>${item.vehicle} — ${item.status}</strong><br>
+Location: ${item.location}<br>Suggested priority route: ${item.route}
+</div>`).join("");
 }
 
+function refreshDashboard(){
+intersections.forEach(item=>{
+item.vehicles=Math.max(0,item.vehicles+Math.floor(Math.random()*41)-20);
+item.wait=Math.max(0,item.wait+Math.floor(Math.random()*31)-15);
+});
+renderDashboard();
+document.getElementById("lastUpdated").textContent=
+"Simulated data refreshed at "+new Date().toLocaleTimeString();
+}
+
+initializeFilters();
 renderDashboard();
 </script>
 </body>
 </html>
-

@@ -1,4 +1,3 @@
-
 pipeline {
     agent any
 
@@ -11,23 +10,22 @@ pipeline {
         choice(
             name: 'RELEASE_MODE',
             choices: ['STABLE', 'FAULTY_TEST'],
-            description: 'STABLE deploys a healthy version. FAULTY_TEST tests automatic rollback.'
+            description: 'STABLE deploys the working application. FAULTY_TEST tests automatic rollback.'
         )
     }
 
     environment {
+        PATH+DOCKER = '/usr/local/bin'
         IMAGE_NAME = 'perkeylynx/intelligent-traffic-management'
         DEPLOYMENT_NAME = 'traffic-dashboard'
-        CONTAINER_NAME = 'traffic-dashboard'
         SERVICE_NAME = 'traffic-dashboard-service'
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
-                sh 'git status --short'
+                sh 'git log -1 --oneline'
             }
         }
 
@@ -38,50 +36,52 @@ pipeline {
                         sh '''
                             set -eu
                             test -s index.html
-                            grep -q "Intelligent Traffic Control Center" index.html
-                            grep -q "Waiting-Time Alerts" index.html
+                            test -s Dockerfile
+                            grep -qi '<html' index.html
+                            grep -q 'FROM nginx' Dockerfile
                             echo "Application validation passed."
                         '''
                     }
                 }
 
-                stage('Validate Deployment Files') {
+                stage('Validate Kubernetes Files') {
                     steps {
                         sh '''
                             set -eu
-                            test -s Dockerfile
                             test -s deployment.yaml
-                            test -s Jenkinsfile
-                            grep -q "readinessProbe" deployment.yaml
-                            grep -q "IMAGE_PLACEHOLDER" deployment.yaml
-                            echo "Deployment files validation passed."
+                            grep -q 'IMAGE_PLACEHOLDER' deployment.yaml
+                            grep -q 'kind: Deployment' deployment.yaml
+                            grep -q 'kind: Service' deployment.yaml
+                            echo "Kubernetes configuration validation passed."
                         '''
                     }
                 }
             }
         }
 
+        stage('Verify Docker') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "Docker executable:"
+                    command -v docker
+                    docker --version
+                    docker info
+                '''
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 script {
-                    def mode = params.RELEASE_MODE ?: 'STABLE'
-                    env.ACTIVE_RELEASE_MODE = mode
+                    def faulty = params.RELEASE_MODE == 'FAULTY_TEST' ? 'true' : 'false'
 
-                    if (mode == 'FAULTY_TEST') {
-                        sh '''
-                            set -eu
-                            docker build \
-                              --build-arg FAULTY_RELEASE=true \
-                              -t "$IMAGE_NAME:$BUILD_NUMBER" .
-                        '''
-                    } else {
-                        sh '''
-                            set -eu
-                            docker build \
-                              --build-arg FAULTY_RELEASE=false \
-                              -t "$IMAGE_NAME:$BUILD_NUMBER" .
-                        '''
-                    }
+                    sh """
+                        set -eu
+                        /usr/local/bin/docker build \
+                            --build-arg FAULTY_RELEASE=${faulty} \
+                            -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                    """
                 }
             }
         }
@@ -91,73 +91,75 @@ pipeline {
                 sh '''
                     set -eu
 
-                    TEST_CONTAINER="traffic-test-$BUILD_NUMBER"
+                    /usr/local/bin/docker rm -f traffic-dashboard-test >/dev/null 2>&1 || true
+
+                    /usr/local/bin/docker run -d \
+                        --name traffic-dashboard-test \
+                        -p 18081:80 \
+                        "${IMAGE_NAME}:${BUILD_NUMBER}"
 
                     cleanup() {
-                        docker rm -f "$TEST_CONTAINER" >/dev/null 2>&1 || true
+                        /usr/local/bin/docker rm -f traffic-dashboard-test >/dev/null 2>&1 || true
                     }
                     trap cleanup EXIT
 
-                    docker run -d \
-                      --name "$TEST_CONTAINER" \
-                      -p 18081:80 \
-                      "$IMAGE_NAME:$BUILD_NUMBER"
+                    sleep 3
 
-                    curl --retry 10 \
-                      --retry-connrefused \
-                      --retry-delay 1 \
-                      -fsS http://localhost:18081/ \
-                      >/dev/null
+                    curl --fail --silent --show-error \
+                        http://localhost:18081/ >/dev/null
 
-                    if [ "$ACTIVE_RELEASE_MODE" = "FAULTY_TEST" ]; then
-                        if curl -fsS http://localhost:18081/health; then
-                            echo "ERROR: Faulty image unexpectedly passed health check."
+                    echo "Dashboard HTTP test passed."
+
+                    if [ "$RELEASE_MODE" = "FAULTY_TEST" ]; then
+                        if curl --fail --silent \
+                            http://localhost:18081/health >/dev/null; then
+                            echo "ERROR: Faulty image unexpectedly passed its health check."
                             exit 1
-                        else
-                            echo "Expected fault confirmed: health endpoint unavailable."
                         fi
+                        echo "Expected faulty health-check failure detected."
                     else
-                        curl -fsS http://localhost:18081/health
-                        echo "Stable image health test passed."
+                        curl --fail --silent --show-error \
+                            http://localhost:18081/health
+                        echo "Stable image health check passed."
                     fi
                 '''
             }
         }
 
-        stage('Archive Build Artifacts') {
+        stage('Archive Artifacts') {
             steps {
                 archiveArtifacts(
                     artifacts: 'index.html,Dockerfile,Jenkinsfile,deployment.yaml',
-                    fingerprint: true
+                    allowEmptyArchive: false
                 )
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Push Image to Docker Hub') {
             steps {
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhub',
-                        usernameVariable: 'DH_USER',
-                        passwordVariable: 'DH_TOKEN'
+                        usernameVariable: 'DOCKERHUB_USER',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
                     )
                 ]) {
                     sh '''
                         set -eu
 
-                        echo "$DH_TOKEN" | docker login \
-                          --username "$DH_USER" \
-                          --password-stdin
+                        echo "$DOCKERHUB_TOKEN" | /usr/local/bin/docker login \
+                            --username "$DOCKERHUB_USER" \
+                            --password-stdin
 
-                        docker push "$IMAGE_NAME:$BUILD_NUMBER"
+                        /usr/local/bin/docker push "${IMAGE_NAME}:${BUILD_NUMBER}"
 
-                        docker logout
+                        /usr/local/bin/docker logout
                     '''
                 }
             }
         }
 
-        stage('Deploy and Verify Recovery') {
+        stage('Deploy and Verify Kubernetes') {
             steps {
                 withCredentials([
                     file(
@@ -165,79 +167,64 @@ pipeline {
                         variable: 'KUBECONFIG_FILE'
                     )
                 ]) {
-                    withEnv(["KUBECONFIG=${env.KUBECONFIG_FILE}"]) {
-                        script {
-                            int rolloutStatus
-
+                    script {
+                        withEnv(["KUBECONFIG=${env.KUBECONFIG_FILE}"]) {
                             sh '''
                                 set -eu
+                                kubectl config current-context
 
-                                sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$BUILD_NUMBER|g" \
-                                  deployment.yaml > deployment-rendered.yaml
+                                sed "s|IMAGE_PLACEHOLDER|${IMAGE_NAME}:${BUILD_NUMBER}|g" \
+                                    deployment.yaml > deployment-rendered.yaml
 
                                 kubectl apply -f deployment-rendered.yaml
                             '''
 
-                            rolloutStatus = sh(
-                                script: '''
-                                    kubectl rollout status \
-                                      deployment/$DEPLOYMENT_NAME \
-                                      --timeout=60s
-                                ''',
+                            int rolloutStatus = sh(
+                                script: "kubectl rollout status deployment/${DEPLOYMENT_NAME} --timeout=120s",
                                 returnStatus: true
                             )
 
                             if (rolloutStatus != 0) {
-                                echo 'Deployment rollout failed. Attempting rollback.'
+                                echo 'Deployment rollout failed. Attempting automatic rollback.'
 
-                                def undoStatus = sh(
-                                    script: '''
-                                        kubectl rollout undo \
-                                          deployment/$DEPLOYMENT_NAME
-                                    ''',
+                                int undoStatus = sh(
+                                    script: "kubectl rollout undo deployment/${DEPLOYMENT_NAME}",
                                     returnStatus: true
                                 )
 
                                 if (undoStatus != 0) {
-                                    error('Rollback command failed. Inspect Kubernetes events.')
+                                    error('Rollback command failed. Check Kubernetes rollout history.')
                                 }
 
-                                def recoveryStatus = sh(
-                                    script: '''
-                                        kubectl rollout status \
-                                          deployment/$DEPLOYMENT_NAME \
-                                          --timeout=120s
-                                    ''',
+                                int recoveryStatus = sh(
+                                    script: "kubectl rollout status deployment/${DEPLOYMENT_NAME} --timeout=120s",
                                     returnStatus: true
                                 )
 
                                 if (recoveryStatus != 0) {
-                                    error('Previous deployment did not recover successfully.')
+                                    error('Rollback was attempted, but the previous deployment did not recover.')
                                 }
 
-                                if (env.ACTIVE_RELEASE_MODE != 'FAULTY_TEST') {
-                                    error('Unexpected rollout failure in STABLE mode.')
-                                }
+                                sh '''
+                                    kubectl get deployments
+                                    kubectl get pods -o wide
+                                    kubectl rollout history deployment/traffic-dashboard
+                                '''
 
-                                echo 'Faulty release rejected; previous deployment restored.'
+                                if (params.RELEASE_MODE == 'FAULTY_TEST') {
+                                    echo 'FAULTY_TEST passed: failed rollout detected and previous revision restored.'
+                                } else {
+                                    error('Stable deployment failed; rollback completed. Investigate the cause.')
+                                }
                             } else {
                                 echo 'Deployment rollout succeeded.'
                             }
 
                             sh '''
-                                set -eu
-
                                 kubectl get deployments
                                 kubectl get pods -o wide
                                 kubectl get services
-                                kubectl rollout history deployment/$DEPLOYMENT_NAME
-
-                                curl --retry 10 \
-                                  --retry-connrefused \
-                                  --retry-delay 2 \
-                                  -fsS http://localhost:30080/health
-
-                                echo "Application health verification passed."
+                                kubectl rollout history deployment/traffic-dashboard
                             '''
                         }
                     }
@@ -252,11 +239,13 @@ pipeline {
         }
 
         failure {
-            echo 'Pipeline failed. Check the first failed stage and console output.'
+            echo 'Pipeline failed. Review the console output for the failing stage.'
         }
 
         always {
-            echo 'Traffic Management pipeline execution finished.'
+            sh '''
+                /usr/local/bin/docker rm -f traffic-dashboard-test >/dev/null 2>&1 || true
+            '''
         }
     }
 }

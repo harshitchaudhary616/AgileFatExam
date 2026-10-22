@@ -1,4 +1,3 @@
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,20 +25,19 @@ spec:
           image: IMAGE_PLACEHOLDER
           imagePullPolicy: Always
           ports:
-            - name: http
-              containerPort: 80
+            - containerPort: 80
           readinessProbe:
             httpGet:
               path: /health
-              port: http
-            initialDelaySeconds: 2
-            periodSeconds: 3
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
             timeoutSeconds: 2
-            failureThreshold: 2
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /
-              port: http
+              port: 80
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 2
@@ -63,5 +61,5 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: http
-      nodePort: 30080
+      targetPort: 80
+      protocol: TCP

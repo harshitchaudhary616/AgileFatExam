@@ -10,12 +10,12 @@ pipeline {
         choice(
             name: 'RELEASE_MODE',
             choices: ['STABLE', 'FAULTY_TEST'],
-            description: 'STABLE deploys the working application. FAULTY_TEST tests automatic rollback.'
+            description: 'STABLE deploys the working app. FAULTY_TEST verifies automatic rollback.'
         )
     }
 
     environment {
-        PATH+DOCKER = '/usr/local/bin'
+        PATH = '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
         IMAGE_NAME = 'perkeylynx/intelligent-traffic-management'
         DEPLOYMENT_NAME = 'traffic-dashboard'
         SERVICE_NAME = 'traffic-dashboard-service'
@@ -52,7 +52,7 @@ pipeline {
                             grep -q 'IMAGE_PLACEHOLDER' deployment.yaml
                             grep -q 'kind: Deployment' deployment.yaml
                             grep -q 'kind: Service' deployment.yaml
-                            echo "Kubernetes configuration validation passed."
+                            echo "Kubernetes validation passed."
                         '''
                     }
                 }
@@ -63,10 +63,8 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    echo "Docker executable:"
-                    command -v docker
-                    docker --version
-                    docker info
+                    /usr/local/bin/docker --version
+                    /usr/local/bin/docker info
                 '''
             }
         }
@@ -108,7 +106,7 @@ pipeline {
                     curl --fail --silent --show-error \
                         http://localhost:18081/ >/dev/null
 
-                    echo "Dashboard HTTP test passed."
+                    echo "Dashboard test passed."
 
                     if [ "$RELEASE_MODE" = "FAULTY_TEST" ]; then
                         if curl --fail --silent \
@@ -159,7 +157,7 @@ pipeline {
             }
         }
 
-        stage('Deploy and Verify Kubernetes') {
+        stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([
                     file(
@@ -171,6 +169,7 @@ pipeline {
                         withEnv(["KUBECONFIG=${env.KUBECONFIG_FILE}"]) {
                             sh '''
                                 set -eu
+
                                 kubectl config current-context
 
                                 sed "s|IMAGE_PLACEHOLDER|${IMAGE_NAME}:${BUILD_NUMBER}|g" \
@@ -185,7 +184,7 @@ pipeline {
                             )
 
                             if (rolloutStatus != 0) {
-                                echo 'Deployment rollout failed. Attempting automatic rollback.'
+                                echo 'Rollout failed. Attempting automatic rollback.'
 
                                 int undoStatus = sh(
                                     script: "kubectl rollout undo deployment/${DEPLOYMENT_NAME}",
@@ -193,7 +192,7 @@ pipeline {
                                 )
 
                                 if (undoStatus != 0) {
-                                    error('Rollback command failed. Check Kubernetes rollout history.')
+                                    error('Rollback command failed.')
                                 }
 
                                 int recoveryStatus = sh(
@@ -214,10 +213,10 @@ pipeline {
                                 if (params.RELEASE_MODE == 'FAULTY_TEST') {
                                     echo 'FAULTY_TEST passed: failed rollout detected and previous revision restored.'
                                 } else {
-                                    error('Stable deployment failed; rollback completed. Investigate the cause.')
+                                    error('Stable deployment failed. Rollback completed; investigate the cause.')
                                 }
                             } else {
-                                echo 'Deployment rollout succeeded.'
+                                echo 'Kubernetes deployment succeeded.'
                             }
 
                             sh '''
@@ -239,7 +238,7 @@ pipeline {
         }
 
         failure {
-            echo 'Pipeline failed. Review the console output for the failing stage.'
+            echo 'Pipeline failed. Check the first error in the console.'
         }
 
         always {

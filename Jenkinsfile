@@ -11,7 +11,7 @@ pipeline {
         choice(
             name: 'RELEASE_MODE',
             choices: ['STABLE', 'FAULTY_TEST'],
-            description: 'Choose a healthy release or the deliberate rollback test.'
+            description: 'STABLE deploys a healthy version. FAULTY_TEST tests automatic rollback.'
         )
     }
 
@@ -23,6 +23,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -39,7 +40,7 @@ pipeline {
                             test -s index.html
                             grep -q "Intelligent Traffic Control Center" index.html
                             grep -q "Waiting-Time Alerts" index.html
-                            echo "Dashboard source validation passed."
+                            echo "Application validation passed."
                         '''
                     }
                 }
@@ -53,7 +54,7 @@ pipeline {
                             test -s Jenkinsfile
                             grep -q "readinessProbe" deployment.yaml
                             grep -q "IMAGE_PLACEHOLDER" deployment.yaml
-                            echo "Deployment configuration validation passed."
+                            echo "Deployment files validation passed."
                         '''
                     }
                 }
@@ -62,19 +63,26 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    set -eu
+                script {
+                    def mode = params.RELEASE_MODE ?: 'STABLE'
+                    env.ACTIVE_RELEASE_MODE = mode
 
-                    if [ "$RELEASE_MODE" = "FAULTY_TEST" ]; then
-                        docker build \
-                          --build-arg FAULTY_RELEASE=true \
-                          -t "$IMAGE_NAME:$BUILD_NUMBER" .
-                    else
-                        docker build \
-                          --build-arg FAULTY_RELEASE=false \
-                          -t "$IMAGE_NAME:$BUILD_NUMBER" .
-                    fi
-                '''
+                    if (mode == 'FAULTY_TEST') {
+                        sh '''
+                            set -eu
+                            docker build \
+                              --build-arg FAULTY_RELEASE=true \
+                              -t "$IMAGE_NAME:$BUILD_NUMBER" .
+                        '''
+                    } else {
+                        sh '''
+                            set -eu
+                            docker build \
+                              --build-arg FAULTY_RELEASE=false \
+                              -t "$IMAGE_NAME:$BUILD_NUMBER" .
+                        '''
+                    }
+                }
             }
         }
 
@@ -95,22 +103,22 @@ pipeline {
                       -p 18081:80 \
                       "$IMAGE_NAME:$BUILD_NUMBER"
 
-                    sleep 3
+                    curl --retry 10 \
+                      --retry-connrefused \
+                      --retry-delay 1 \
+                      -fsS http://localhost:18081/ \
+                      >/dev/null
 
-                    # The dashboard must work in both versions.
-                    curl --retry 5 --retry-connrefused --retry-delay 1 \
-                      -fsS http://localhost:18081/ >/dev/null
-
-                    if [ "$RELEASE_MODE" = "STABLE" ]; then
-                        curl -fsS http://localhost:18081/health
-                        echo "Stable image health check passed."
-                    else
+                    if [ "$ACTIVE_RELEASE_MODE" = "FAULTY_TEST" ]; then
                         if curl -fsS http://localhost:18081/health; then
-                            echo "ERROR: The faulty image unexpectedly passed health checks."
+                            echo "ERROR: Faulty image unexpectedly passed health check."
                             exit 1
                         else
-                            echo "Expected fault confirmed: /health is unavailable."
+                            echo "Expected fault confirmed: health endpoint unavailable."
                         fi
+                    else
+                        curl -fsS http://localhost:18081/health
+                        echo "Stable image health test passed."
                     fi
                 '''
             }
@@ -136,8 +144,10 @@ pipeline {
                 ]) {
                     sh '''
                         set -eu
+
                         echo "$DH_TOKEN" | docker login \
-                          -u "$DH_USER" --password-stdin
+                          --username "$DH_USER" \
+                          --password-stdin
 
                         docker push "$IMAGE_NAME:$BUILD_NUMBER"
 
@@ -155,52 +165,81 @@ pipeline {
                         variable: 'KUBECONFIG_FILE'
                     )
                 ]) {
-                    withEnv(["KUBECONFIG=${KUBECONFIG_FILE}"]) {
-                        sh '''
-                            set -eu
+                    withEnv(["KUBECONFIG=${env.KUBECONFIG_FILE}"]) {
+                        script {
+                            int rolloutStatus
 
-                            echo "Deploying image: $IMAGE_NAME:$BUILD_NUMBER"
+                            sh '''
+                                set -eu
 
-                            # Substitute the actual image before applying.
-                            sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$BUILD_NUMBER|g" \
-                              deployment.yaml | kubectl apply -f -
+                                sed "s|IMAGE_PLACEHOLDER|$IMAGE_NAME:$BUILD_NUMBER|g" \
+                                  deployment.yaml > deployment-rendered.yaml
 
-                            if kubectl rollout status \
-                              deployment/$DEPLOYMENT_NAME --timeout=60s; then
+                                kubectl apply -f deployment-rendered.yaml
+                            '''
 
-                                echo "Deployment rollout succeeded."
+                            rolloutStatus = sh(
+                                script: '''
+                                    kubectl rollout status \
+                                      deployment/$DEPLOYMENT_NAME \
+                                      --timeout=60s
+                                ''',
+                                returnStatus: true
+                            )
 
-                            else
-                                echo "Rollout failed. Starting automatic rollback."
+                            if (rolloutStatus != 0) {
+                                echo 'Deployment rollout failed. Attempting rollback.'
 
-                                kubectl rollout undo deployment/$DEPLOYMENT_NAME
+                                def undoStatus = sh(
+                                    script: '''
+                                        kubectl rollout undo \
+                                          deployment/$DEPLOYMENT_NAME
+                                    ''',
+                                    returnStatus: true
+                                )
 
-                                kubectl rollout status \
-                                  deployment/$DEPLOYMENT_NAME --timeout=120s
+                                if (undoStatus != 0) {
+                                    error('Rollback command failed. Inspect Kubernetes events.')
+                                }
 
-                                echo "Previous deployment restored."
+                                def recoveryStatus = sh(
+                                    script: '''
+                                        kubectl rollout status \
+                                          deployment/$DEPLOYMENT_NAME \
+                                          --timeout=120s
+                                    ''',
+                                    returnStatus: true
+                                )
 
-                                if [ "$RELEASE_MODE" = "FAULTY_TEST" ]; then
-                                    echo "Expected faulty release rejected; rollback succeeded."
-                                else
-                                    echo "Unexpected stable deployment failure."
-                                    exit 1
-                                fi
-                            fi
+                                if (recoveryStatus != 0) {
+                                    error('Previous deployment did not recover successfully.')
+                                }
 
-                            echo "Verifying restored deployment."
+                                if (env.ACTIVE_RELEASE_MODE != 'FAULTY_TEST') {
+                                    error('Unexpected rollout failure in STABLE mode.')
+                                }
 
-                            kubectl get deployments
-                            kubectl get pods -o wide
-                            kubectl get services
-                            kubectl rollout history deployment/$DEPLOYMENT_NAME
+                                echo 'Faulty release rejected; previous deployment restored.'
+                            } else {
+                                echo 'Deployment rollout succeeded.'
+                            }
 
-                            # The previous stable release must serve its health endpoint.
-                            curl --retry 10 --retry-connrefused --retry-delay 2 \
-                              -fsS http://localhost:30080/health
+                            sh '''
+                                set -eu
 
-                            echo "Application health verification passed."
-                        '''
+                                kubectl get deployments
+                                kubectl get pods -o wide
+                                kubectl get services
+                                kubectl rollout history deployment/$DEPLOYMENT_NAME
+
+                                curl --retry 10 \
+                                  --retry-connrefused \
+                                  --retry-delay 2 \
+                                  -fsS http://localhost:30080/health
+
+                                echo "Application health verification passed."
+                            '''
+                        }
                     }
                 }
             }
@@ -209,14 +248,15 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline completed. Deployment and recovery checks passed.'
+            echo 'Pipeline completed successfully.'
         }
+
         failure {
-            echo 'Pipeline failed. Inspect the first failed stage and console output.'
+            echo 'Pipeline failed. Check the first failed stage and console output.'
         }
+
         always {
-            echo 'Traffic management pipeline execution finished.'
+            echo 'Traffic Management pipeline execution finished.'
         }
     }
 }
-

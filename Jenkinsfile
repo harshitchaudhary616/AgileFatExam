@@ -16,7 +16,7 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = 'gopikaks39/intelligent-traffic-management'
+        IMAGE_NAME = 'perkeylynx/intelligent-traffic-management'
         DEPLOYMENT_NAME = 'traffic-dashboard'
         CONTAINER_NAME = 'traffic-dashboard'
         SERVICE_NAME = 'traffic-dashboard-service'
